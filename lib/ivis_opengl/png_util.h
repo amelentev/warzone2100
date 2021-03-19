@@ -72,6 +72,11 @@ IMGSaveError iV_loadImage_PNG(const std::vector<unsigned char>& memoryBuffer, iV
 IMGSaveError iV_saveImage_PNG(const char *fileName, const iV_Image *image);
 
 /*!
+ * Same as iV_saveImage_PNG but with additional alpha channel
+ */
+IMGSaveError iV_saveImage_PNG_RGBA(const char *fileName, const iV_Image *image);
+
+/*!
  * Save a PNG from image into file using grayscale colour model.
  *
  * This function is safe to call from any thread

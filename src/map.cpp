@@ -31,6 +31,7 @@
 #include "lib/framework/physfs_ext.h"
 #include "lib/ivis_opengl/tex.h"
 #include "lib/netplay/netplay.h"  // For syncDebug
+#include "lib/ivis_opengl/png_util.h"
 
 #include "map.h"
 #include "hci.h"
@@ -747,6 +748,49 @@ static void generateRiverbed()
 
 }
 
+void saveHeightSplatMaps(const char *filename) {
+	debug(LOG_INFO, "Generating heightmaps and splatmaps for %s", filename);
+	unsigned int pngWidth = 129;
+	unsigned int pngHeight = 129;
+	uint8_t *height = (uint8_t *)calloc(pngWidth * pngHeight, 1);
+	uint8_t *splats[] = {NULL, NULL, NULL};
+	for (int i = 0; i<3; i++) {
+		splats[i] = (uint8_t *)calloc(pngWidth * pngHeight, 4);
+	}
+	if (pngWidth < mapWidth || pngHeight < mapHeight) {
+		debug(LOG_ERROR, "Too small image for %dx%d", mapWidth, mapHeight);
+		return;
+	}
+
+	for (int y = 0; y < mapHeight; y++) {
+		for (int x = 0; x < mapWidth; x++) {
+			MAPTILE *psTile = mapTile(x, y);
+			int pixpos = y * pngWidth + x;
+			auto g = psTile->ground;
+			if (g >= 12) {
+				debug(LOG_ERROR, "Too many grounds? %d", g);
+				return;
+			}
+			splats[g / 4][pixpos*4 + g % 4] = 0xff;
+			height[pixpos] = psTile->height / ELEVATION_SCALE;
+		}
+	}
+	debug(LOG_INFO, "Saving heightmaps and splatmaps pngs");
+	iV_Image heightImg = {pngWidth, pngHeight, 8, height};
+	auto err = iV_saveImage_PNG_Gray("height.png", &heightImg);
+	if (!err.noError()) debug(LOG_ERROR, "Error in height.png: %s", err.text.c_str());
+	free(height);
+	char splatFile[255];
+	for (int i = 0; i<3; i++) {
+		iV_Image splatImg = {pngWidth, pngHeight, 8, splats[i]};
+		sprintf(splatFile, "splat%d.png", i+1);
+		auto serr = iV_saveImage_PNG_RGBA(splatFile, &splatImg);
+		if (!serr.noError()) debug(LOG_ERROR, "Error in splatmap%d: %s", i+1, serr.text.c_str());
+		free(splats[i]);
+	}
+	debug(LOG_INFO, "height.png and splatx.pngs saved to %s", PHYSFS_getWriteDir());
+}
+
 static bool afterMapLoad();
 
 /* Initialise the map structure */
@@ -880,6 +924,8 @@ bool mapLoad(char const *filename, bool preview)
 	{
 		goto failure;
 	}
+
+	saveHeightSplatMaps(filename);
 
 ok:
 	PHYSFS_close(fp);
