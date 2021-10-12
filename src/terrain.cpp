@@ -90,6 +90,13 @@ struct Sector
 
 using RenderVertex = Vector3f;
 
+// VBO for gfx_api::TerrainLayer and TerrainDepth
+struct TerrainVertex
+{
+	Vector3f pos = Vector3f(0.f, 0.f, 0.f);
+	Vector3f normal = Vector3f(0.f, 1.f, 0.f);
+};
+
 /// A vertex with a position and texture coordinates. see gfx_api::TerrainDecals
 struct DecalVertex
 {
@@ -124,7 +131,6 @@ static std::string waterTexture2_hm;
 
 /// VBOs
 static gfx_api::buffer *geometryVBO = nullptr, *geometryIndexVBO = nullptr, *textureVBO = nullptr, *textureIndexVBO = nullptr, *decalVBO = nullptr;
-static gfx_api::buffer *normalVBO = nullptr;
 /// VBOs
 static gfx_api::buffer *waterVBO = nullptr, *waterIndexVBO = nullptr;
 /// The amount we shift the water textures so the waves appear to be moving
@@ -409,7 +415,7 @@ static inline void averageColour(PIELIGHT *average, PIELIGHT a, PIELIGHT b,
  * Set the terrain and water geometry for the specified sector
  */
 static void setSectorGeometry(int sx, int sy,
-                              RenderVertex *geometry, RenderVertex *normals, WaterVertex *water,
+                              TerrainVertex *geometry, WaterVertex *water,
                               int *geometrySize, int *waterSize)
 {
 	for (int x = sx*sectorSize; x < (sx+1)*sectorSize + 1; x++)
@@ -418,8 +424,8 @@ static void setSectorGeometry(int sx, int sy,
 		{
 			// set up geometry
 			auto pos = getGridPosf(x, y, false, false);
-			geometry[*geometrySize] = pos;
-			normals[*geometrySize] = getGridNormal(x, y, false);
+			geometry[*geometrySize].pos = pos;
+			geometry[*geometrySize].normal = getGridNormal(x, y, false);
 			(*geometrySize)++;
 
 			float waterHeight = map_WaterHeight(x, y);
@@ -427,8 +433,8 @@ static void setSectorGeometry(int sx, int sy,
 			(*waterSize)++;
 
 			pos = getGridPosf(x, y, true, false);
-			geometry[*geometrySize] = pos;
-			normals[*geometrySize] = getGridNormal(x, y, true);
+			geometry[*geometrySize].pos = pos;
+			geometry[*geometrySize].normal = getGridNormal(x, y, true);
 			(*geometrySize)++;
 
 			water[*waterSize] = glm::vec4(pos.x, waterHeight, pos.z, waterHeight - pos.y);
@@ -563,29 +569,28 @@ static void setSectorDecals(int x, int y, DecalVertex *decaldata, int *decalSize
  */
 static void updateSectorGeometry(int x, int y)
 {
-	RenderVertex *geometry, *normals;
+	TerrainVertex *geometry;
 	WaterVertex *water;
 	DecalVertex *decaldata;
 	int geometrySize = 0;
 	int waterSize = 0;
 	int decalSize = 0;
 
-	geometry  = (RenderVertex *)malloc(sizeof(RenderVertex) * sectors[x * ySectors + y].geometrySize);
-	normals   = (RenderVertex *)malloc(sizeof(RenderVertex) * sectors[x * ySectors + y].geometrySize);
+	geometry  = new TerrainVertex[sectors[x * ySectors + y].geometrySize];
 	water     = (WaterVertex *)malloc(sizeof(WaterVertex) * sectors[x * ySectors + y].waterSize);
 
-	setSectorGeometry(x, y, geometry, normals, water, &geometrySize, &waterSize);
+	setSectorGeometry(x, y, geometry, water, &geometrySize, &waterSize);
 	ASSERT(geometrySize == sectors[x * ySectors + y].geometrySize, "something went seriously wrong updating the terrain");
 	ASSERT(waterSize    == sectors[x * ySectors + y].waterSize   , "something went seriously wrong updating the terrain");
 
-	geometryVBO->update(sizeof(RenderVertex)*sectors[x * ySectors + y].geometryOffset,
-	                    sizeof(RenderVertex)*sectors[x * ySectors + y].geometrySize, geometry,
+	geometryVBO->update(sizeof(TerrainVertex)*sectors[x * ySectors + y].geometryOffset,
+	                    sizeof(TerrainVertex)*sectors[x * ySectors + y].geometrySize, geometry,
 						gfx_api::buffer::update_flag::non_overlapping_updates_promise);
 	waterVBO->update(sizeof(WaterVertex)*sectors[x * ySectors + y].waterOffset,
 	                 sizeof(WaterVertex)*sectors[x * ySectors + y].waterSize, water,
 					 gfx_api::buffer::update_flag::non_overlapping_updates_promise);
 
-	free(geometry);
+	delete[] geometry;
 	free(water);
 
 	if (sectors[x * ySectors + y].decalSize <= 0)
@@ -710,7 +715,7 @@ bool initTerrain()
 	PIELIGHT colour[2][2], centerColour;
 	int layer = 0;
 
-	RenderVertex *geometry, *normals;
+	TerrainVertex *geometry;
 	WaterVertex *water;
 	DecalVertex *decaldata;
 	int geometrySize, geometryIndexSize;
@@ -781,8 +786,7 @@ bool initTerrain()
 	////////////////////
 	// fill the geometry part of the sectors
 	const int vertSize = xSectors * ySectors * (sectorSize + 1) * (sectorSize + 1) * 2;
-	geometry = (RenderVertex *)malloc(sizeof(RenderVertex) * vertSize);
-	normals  = (RenderVertex *)malloc(sizeof(RenderVertex) * vertSize);
+	geometry = new TerrainVertex[vertSize];
 	geometryIndex = (GLuint *)malloc(sizeof(GLuint) * xSectors * ySectors * sectorSize * sectorSize * 12);
 	geometrySize = 0;
 	geometryIndexSize = 0;
@@ -801,7 +805,7 @@ bool initTerrain()
 			sectors[x * ySectors + y].waterOffset = waterSize;
 			sectors[x * ySectors + y].waterSize = 0;
 
-			setSectorGeometry(x, y, geometry, normals, water, &geometrySize, &waterSize);
+			setSectorGeometry(x, y, geometry, water, &geometrySize, &waterSize);
 
 			sectors[x * ySectors + y].geometrySize = geometrySize - sectors[x * ySectors + y].geometryOffset;
 			sectors[x * ySectors + y].waterSize = waterSize - sectors[x * ySectors + y].waterOffset;
@@ -877,14 +881,8 @@ bool initTerrain()
 	if (geometryVBO)
 		delete geometryVBO;
 	geometryVBO = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer, gfx_api::context::buffer_storage_hint::dynamic_draw);
-	geometryVBO->upload(sizeof(RenderVertex)*geometrySize, geometry);
-	free(geometry);
-
-	if (normalVBO)
-		delete normalVBO;
-	normalVBO = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer, gfx_api::context::buffer_storage_hint::dynamic_draw);
-	normalVBO->upload(sizeof(RenderVertex)*geometrySize, normals);
-	free(normals);
+	geometryVBO->upload(sizeof(TerrainVertex)*geometrySize, geometry);
+	delete[] geometry;
 
 	if (geometryIndexVBO)
 		delete geometryIndexVBO;
@@ -1092,8 +1090,6 @@ void shutdownTerrain()
 	}
 	delete geometryVBO;
 	geometryVBO = nullptr;
-	delete normalVBO;
-	normalVBO = nullptr;
 	delete geometryIndexVBO;
 	geometryIndexVBO = nullptr;
 	delete waterVBO;
@@ -1269,7 +1265,7 @@ static void drawTerrainLayers(const glm::mat4 &ModelViewProjection, const glm::m
 
 	// load the vertex (geometry) buffer
 	gfx_api::TerrainLayer::get().bind();
-	gfx_api::TerrainLayer::get().bind_vertex_buffers(geometryVBO, textureVBO, normalVBO);
+	gfx_api::TerrainLayer::get().bind_vertex_buffers(geometryVBO, textureVBO);
 	gfx_api::context::get().bind_index_buffer(*textureIndexVBO, gfx_api::index_type::u32);
 	const size_t numGroundTypes = getNumGroundTypes();
 	ASSERT_OR_RETURN(, numGroundTypes, "Ground type was not set, no textures will be seen.");
@@ -1326,7 +1322,7 @@ static void drawTerrainLayers(const glm::mat4 &ModelViewProjection, const glm::m
 		}
 		finishDrawRangeElements<gfx_api::TerrainLayer>();
 	}
-	gfx_api::TerrainLayer::get().unbind_vertex_buffers(geometryVBO, textureVBO, normalVBO);
+	gfx_api::TerrainLayer::get().unbind_vertex_buffers(geometryVBO, textureVBO);
 	gfx_api::context::get().unbind_index_buffer(*textureIndexVBO);
 }
 

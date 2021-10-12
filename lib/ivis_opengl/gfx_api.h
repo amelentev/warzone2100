@@ -679,10 +679,15 @@ namespace gfx_api
 		int texture1;
 	};
 
+	using TerrainVertexVBODescription = vertex_buffer_description<sizeof(glm::vec3) + sizeof(glm::vec3),
+		vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>,
+		vertex_attribute_description<normal,  gfx_api::vertex_attribute_type::float3, sizeof(glm::vec3)>
+	>;
+
 	using TerrainDepth = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_LEQ_WRT_ON, 0, polygon_offset::enabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u32,
 	std::tuple<constant_buffer_type<SHADER_TERRAIN_DEPTH>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
+	TerrainVertexVBODescription
 	>, std::tuple<texture_description<0, sampler_type::bilinear_repeat>>, SHADER_TERRAIN_DEPTH>;
 
 	template<>
@@ -710,9 +715,8 @@ namespace gfx_api
 	using TerrainLayer = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ADDITIVE, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u32,
 	std::tuple<constant_buffer_type<SHADER_TERRAIN>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<4, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>,
-	vertex_buffer_description<12, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>
+	TerrainVertexVBODescription,
+	vertex_buffer_description<4, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, std::tuple<
 	texture_description<0, sampler_type::anisotropic_repeat>,
 	texture_description<1, sampler_type::bilinear>,
