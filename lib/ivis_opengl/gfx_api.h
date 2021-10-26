@@ -86,17 +86,34 @@ namespace gfx_api
 		FORMAT_R8_UNORM,
 	};
 
-	struct texture
+	struct abstract_texture
 	{
-		virtual ~texture() {};
 		virtual void bind() = 0;
+		virtual bool isArray() = 0;
+		virtual ~abstract_texture() {};
+	};
+
+	struct texture : abstract_texture
+	{
 		virtual void upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const pixel_format& buffer_format, const void* data) = 0;
 		virtual void upload_and_generate_mipmaps(const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const pixel_format& buffer_format, const void* data) = 0;
 		virtual unsigned id() = 0;
+		bool isArray() { return false; }
 
 		texture( const texture& other ) = delete; // non construction-copyable
 		texture& operator=( const texture& ) = delete; // non copyable
 		texture() {};
+	};
+
+	struct texture_array : abstract_texture
+	{
+		virtual void upload_layer(const size_t& layer, const gfx_api::pixel_format & buffer_format, const void * data) = 0;
+		virtual unsigned id() = 0;
+		bool isArray() { return true; }
+
+		texture_array( const texture_array& other ) = delete; // non construction-copyable
+		texture_array& operator=( const texture_array& ) = delete; // non copyable
+		texture_array() {}
 	};
 
 	// An abstract base that manages a single gfx buffer
@@ -281,6 +298,7 @@ namespace gfx_api
 
 		virtual ~context() {};
 		virtual texture* create_texture(const size_t& mipmap_count, const size_t& width, const size_t& height, const pixel_format& internal_format, const std::string& filename = "") = 0;
+		virtual texture_array* create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t& width, const size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename = "") = 0;
 		virtual buffer* create_buffer_object(const buffer::usage&, const buffer_storage_hint& = buffer_storage_hint::static_draw) = 0;
 		virtual pipeline_state_object* build_pipeline(const state_description&,
 													  const SHADER_MODE&,
@@ -295,7 +313,7 @@ namespace gfx_api
 		virtual void unbind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) = 0;
 		virtual void disable_all_vertex_buffers() = 0;
 		virtual void bind_streamed_vertex_buffers(const void* data, const std::size_t size) = 0;
-		virtual void bind_textures(const std::vector<texture_input>& attribute_descriptions, const std::vector<texture*>& textures) = 0;
+		virtual void bind_textures(const std::vector<texture_input>& attribute_descriptions, const std::vector<abstract_texture*>& textures) = 0;
 		virtual void set_constants(const void* buffer, const std::size_t& size) = 0;
 		virtual void set_uniforms(const size_t& first, const std::vector<std::tuple<const void*, size_t>>& uniform_blocks) = 0;
 		virtual void draw(const std::size_t& offset, const std::size_t&, const primitive_type&) = 0;
@@ -495,6 +513,8 @@ namespace gfx_api
 	constexpr std::size_t normal = 3;
 	constexpr std::size_t tangent = 4;
 	constexpr std::size_t tileNo = 5;
+	constexpr std::size_t grounds = 6;
+	constexpr std::size_t groundWeights = 7;
 
 	using notexture = std::tuple<>;
 
@@ -767,6 +787,49 @@ namespace gfx_api
 	texture_description<3, sampler_type::anisotropic>, // specular map
 	texture_description<4, sampler_type::anisotropic>  // height map
 	>, SHADER_DECALS>;
+
+	template<>
+	struct constant_buffer_type<SHADER_TERRAIN_DECALS>
+	{
+		glm::mat4 ModelViewProjectionMatrix;
+		glm::mat4 ModelUVLightmapMatrix;
+		glm::vec4 cameraPos; // in modelSpace
+		glm::vec4 sunPos; // in modelSpace
+		glm::vec4 emissiveLight; // light colors/intensity
+		glm::vec4 ambientLight;
+		glm::vec4 diffuseLight;
+		glm::vec4 specularLight;
+		glm::vec4 fog_colour;
+		int fog_enabled;
+		float fog_begin;
+		float fog_end;
+		int quality;
+		float groundScale[12]; // 12 = MAX_GROUND_TYPES
+	};
+
+	using TerrainAndDecals = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u16,
+	std::tuple<constant_buffer_type<SHADER_TERRAIN_DECALS>>,
+	std::tuple<
+	vertex_buffer_description<2*sizeof(glm::vec3) + sizeof(glm::vec2) + sizeof(glm::vec4) + sizeof(int32_t) + 2*sizeof(PIELIGHT), // TerrainDecalVertex struct
+	vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>,
+	vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float2, sizeof(glm::vec3)>,
+	vertex_attribute_description<normal,   gfx_api::vertex_attribute_type::float3, sizeof(glm::vec3) + sizeof(glm::vec2)>,
+	vertex_attribute_description<tangent,  gfx_api::vertex_attribute_type::float4, 2*sizeof(glm::vec3) + sizeof(glm::vec2)>,
+	vertex_attribute_description<tileNo,   gfx_api::vertex_attribute_type::int1,   2*sizeof(glm::vec3) + sizeof(glm::vec2) + sizeof(glm::vec4)>,
+	vertex_attribute_description<grounds,  gfx_api::vertex_attribute_type::u8x4,   2*sizeof(glm::vec3) + sizeof(glm::vec2) + sizeof(glm::vec4) + sizeof(int32_t)>,
+	vertex_attribute_description<groundWeights, gfx_api::vertex_attribute_type::u8x4_norm, 2*sizeof(glm::vec3) + sizeof(glm::vec2) + sizeof(glm::vec4) + sizeof(int32_t) + sizeof(PIELIGHT)>
+	>
+	>, std::tuple<
+	texture_description<0, sampler_type::bilinear>, // lightmap
+	texture_description<1, sampler_type::anisotropic_repeat>, // ground
+	texture_description<2, sampler_type::anisotropic_repeat>, // ground normal
+	texture_description<3, sampler_type::anisotropic_repeat>, // ground specular
+	texture_description<4, sampler_type::anisotropic_repeat>, // ground height
+	texture_description<5, sampler_type::anisotropic>, // decal
+	texture_description<6, sampler_type::anisotropic>, // decal normal
+	texture_description<7, sampler_type::anisotropic>, // decal specular
+	texture_description<8, sampler_type::anisotropic>  // decal height
+	>, SHADER_TERRAIN_DECALS>;
 
 	template<>
 	struct constant_buffer_type<SHADER_WATER>

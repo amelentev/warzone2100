@@ -52,6 +52,10 @@ TILE_TEX_INFO tileTexInfo[MAX_TILES];
 
 static size_t firstPage; // the last used page before we start adding terrain textures
 size_t terrainPage; // texture ID of the terrain page
+gfx_api::texture_array *decalTexArr = nullptr;
+gfx_api::texture_array *decalNormalArr = nullptr;
+gfx_api::texture_array *decalSpecularArr = nullptr;
+gfx_api::texture_array *decalHeightArr = nullptr;
 size_t terrainNormalPage = 0; // texture ID of the terrain page for normals
 size_t terrainSpecularPage = 0; // texture ID of the terrain page for specular/gloss
 size_t terrainHeightPage = 0; // texture ID of heightmap
@@ -191,19 +195,31 @@ bool texLoad(const char *fileName)
 		sprintf(partialPath, "%s-%d", fileName, maxTileTexSize);
 
 		bool has_nm = false, has_sm = false, has_hm = false;
-		if (terrainShaderQuality != TerrainShaderQuality::CLASSIC) {
-			WZ_PHYSFS_enumerateFiles(partialPath, [&](const char *fileName) -> bool {
-				size_t len = strlen(fileName);
-				auto hasSuffix = [&](const char *suf) -> bool {
-					size_t l = strlen(suf);
-					return strncmp(fileName + len - l, suf, l) == 0;
-				};
-				has_nm |= hasSuffix("_nm.png");
-				has_sm |= hasSuffix("_sm.png");
-				has_hm |= hasSuffix("_hm.png");
-				return !has_nm || !has_sm || !has_hm;
-			});
-		}
+		int maxTileNo = 0;
+		WZ_PHYSFS_enumerateFiles(partialPath, [&](const char *fileName) -> bool {
+			size_t len = strlen(fileName);
+			auto hasSuffix = [&](const char *suf) -> bool {
+				size_t l = strlen(suf);
+				return strncmp(fileName + len - l, suf, l) == 0;
+			};
+			has_nm |= hasSuffix("_nm.png");
+			has_sm |= hasSuffix("_sm.png");
+			has_hm |= hasSuffix("_hm.png");
+			int tile = 0;
+			if (sscanf(fileName, "tile-%02d.png", &tile)) {
+				maxTileNo = std::max(maxTileNo, tile);
+			}
+			return true;
+		});
+		debug(LOG_TEXTURE, "texLoad: Found %d tiles", maxTileNo);
+		delete decalTexArr;
+		delete decalNormalArr;
+		delete decalSpecularArr;
+		delete decalHeightArr;
+		decalTexArr = gfx_api::context::get().create_texture_array(mipmap_levels, maxTileNo+1, mipmap_max, mipmap_max, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, "decal");
+		decalNormalArr = gfx_api::context::get().create_texture_array(mipmap_levels, maxTileNo+1, mipmap_max, mipmap_max, gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8, "decalNormal");
+		decalSpecularArr = gfx_api::context::get().create_texture_array(mipmap_levels, maxTileNo+1, mipmap_max, mipmap_max, gfx_api::pixel_format::FORMAT_R8_UNORM, "decalSpecular");
+		decalHeightArr = gfx_api::context::get().create_texture_array(mipmap_levels, maxTileNo+1, mipmap_max, mipmap_max, gfx_api::pixel_format::FORMAT_R8_UNORM, "decalHeight");
 
 		snprintf(fullPath, sizeof(fullPath), "%s-nm", fileName);
 		if (has_nm) {
@@ -267,6 +283,7 @@ bool texLoad(const char *fileName)
 			// Insert into texture page
 			scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
 			pie_Texture(texPage).upload_and_generate_mipmaps(xOffset, yOffset, tile.width, tile.height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, tile.bmp);
+			decalTexArr->upload_layer(k, iV_getPixelFormat(&tile), tile.bmp);
 			free(tile.bmp);
 
 			tileTexInfo[k].uOffset = (float)xOffset / (float)xSize;
@@ -283,6 +300,8 @@ bool texLoad(const char *fileName)
 					ASSERT_OR_RETURN(false, retval, "Could not load %s!", fullPath);
 					debug(LOG_TEXTURE, "texLoad: Found normal map %s", fullPath);
 					has_nm  = true;
+					scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
+					decalNormalArr->upload_layer(k, iV_getPixelFormat(&tile), tile.bmp);
 				}
 				else
 				{	// default normal map: (0,0,1)
@@ -293,7 +312,6 @@ bool texLoad(const char *fileName)
 					for (int b=0; b<filesize; b+=4) tile.bmp[b+2] = 0xff; // blue=z
 				}
 				// Insert into normal texture page
-				scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
 				pie_Texture(terrainNormalPage).upload_and_generate_mipmaps(xOffset, yOffset, tile.width, tile.height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, tile.bmp);
 				free(tile.bmp);
 			}
@@ -306,6 +324,8 @@ bool texLoad(const char *fileName)
 					ASSERT_OR_RETURN(false, retval, "Could not load %s!", fullPath);
 					debug(LOG_TEXTURE, "texLoad: Found specular map %s", fullPath);
 					has_sm = true;
+					scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
+					decalSpecularArr->upload_layer(k, iV_getPixelFormat(&tile), tile.bmp);
 				}
 				else
 				{	// default specular map: 0
@@ -313,7 +333,6 @@ bool texLoad(const char *fileName)
 					tile.width = tile.height = mipmap_max;
 				}
 				// Insert into specular texture page
-				scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
 				pie_Texture(terrainSpecularPage).upload_and_generate_mipmaps(xOffset, yOffset, tile.width, tile.height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, tile.bmp);
 				free(tile.bmp);
 			}
@@ -326,6 +345,8 @@ bool texLoad(const char *fileName)
 					ASSERT_OR_RETURN(false, retval, "Could not load %s!", fullPath);
 					debug(LOG_TEXTURE, "texLoad: Found height map %s", fullPath);
 					has_hm = true;
+					scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
+					decalHeightArr->upload_layer(k, iV_getPixelFormat(&tile), tile.bmp);
 				}
 				else
 				{	// default height map: 0
@@ -333,7 +354,6 @@ bool texLoad(const char *fileName)
 					tile.width = tile.height = mipmap_max;
 				}
 				// Insert into height texture page
-				scaleImageMaxSize(&tile, mipmap_max, mipmap_max);
 				pie_Texture(terrainHeightPage).upload_and_generate_mipmaps(xOffset, yOffset, tile.width, tile.height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, tile.bmp);
 				free(tile.bmp);
 			}

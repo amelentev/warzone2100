@@ -44,6 +44,10 @@ extern size_t terrainPage;
 extern size_t terrainNormalPage;
 extern size_t terrainSpecularPage;
 extern size_t terrainHeightPage;
+extern gfx_api::texture_array *decalTexArr;
+extern gfx_api::texture_array *decalNormalArr;
+extern gfx_api::texture_array *decalSpecularArr;
+extern gfx_api::texture_array *decalHeightArr;
 
 void setTextureSize(int texSize);
 int getTextureSize();

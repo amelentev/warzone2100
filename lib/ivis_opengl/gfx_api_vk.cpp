@@ -40,6 +40,7 @@
 //
 
 #include "gfx_api_vk.h"
+#include "gfx_api_null.h"
 #include "lib/framework/physfs_ext.h"
 #include "lib/exceptionhandler/dumpinfo.h"
 
@@ -802,6 +803,7 @@ static const std::map<SHADER_MODE, shader_infos> spv_files
 	std::make_pair(SHADER_TERRAIN, shader_infos{ "shaders/vk/terrain.vert.spv", "shaders/vk/terrain.frag.spv" }),
 	std::make_pair(SHADER_TERRAIN_DEPTH, shader_infos{ "shaders/vk/terrain_depth.vert.spv", "shaders/vk/terraindepth.frag.spv" }),
 	std::make_pair(SHADER_DECALS, shader_infos{ "shaders/vk/decals.vert.spv", "shaders/vk/decals.frag.spv" }),
+	std::make_pair(SHADER_TERRAIN_DECALS, shader_infos{ "shaders/vk/terrainDecals.vert.spv", "shaders/vk/terrainDecals.frag.spv" }),
 	std::make_pair(SHADER_WATER, shader_infos{ "shaders/vk/terrain_water.vert.spv", "shaders/vk/water.frag.spv" }),
 	std::make_pair(SHADER_RECT, shader_infos{ "shaders/vk/rect.vert.spv", "shaders/vk/rect.frag.spv" }),
 	std::make_pair(SHADER_TEXRECT, shader_infos{ "shaders/vk/rect.vert.spv", "shaders/vk/texturedrect.frag.spv" }),
@@ -3221,6 +3223,13 @@ gfx_api::texture* VkRoot::create_texture(const std::size_t& mipmap_count, const 
 	return result;
 }
 
+gfx_api::texture_array* VkRoot::create_texture_array(const std::size_t& mipmap_count, const std::size_t& layer_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)
+{
+	// TODO:
+	auto result = new null_texture_array();
+	return result;
+}
+
 gfx_api::buffer* VkRoot::create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint /*= buffer_storage_hint::static_draw*/)
 {
 	return new VkBuf(dev, usage, *this);
@@ -3275,7 +3284,7 @@ void VkRoot::unbind_index_buffer(gfx_api::buffer&)
 	// ?
 }
 
-void VkRoot::bind_textures(const std::vector<gfx_api::texture_input>& attribute_descriptions, const std::vector<gfx_api::texture*>& textures)
+void VkRoot::bind_textures(const std::vector<gfx_api::texture_input>& attribute_descriptions, const std::vector<gfx_api::abstract_texture*>& textures)
 {
 	ASSERT_OR_RETURN(, currentPSO != nullptr, "currentPSO == NULL");
 	ASSERT(textures.size() <= attribute_descriptions.size(), "Received more textures than expected");

@@ -889,6 +889,11 @@ public:
 			gfx_api::TerrainDecals::get().recompile();
 			debug(LOG_INFO, "Done");
 		}, prevButton);
+		prevButton =panel->createButton(1, "Recompile terrainDecails", [](){
+			debug(LOG_INFO, "Recompiling terrainDecails");
+			gfx_api::TerrainAndDecals::get().recompile();
+			debug(LOG_INFO, "Done");
+		}, prevButton);
 		prevButton = panel->createButton(1, "Recompile water", [](){
 			debug(LOG_INFO, "Recompiling water");
 			gfx_api::WaterPSO::get().recompile();

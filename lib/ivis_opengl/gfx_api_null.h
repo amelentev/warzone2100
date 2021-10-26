@@ -49,6 +49,19 @@ public:
 	virtual unsigned id() override;
 };
 
+struct null_texture_array final : public gfx_api::texture_array
+{
+private:
+	friend struct null_context;
+	friend struct VkRoot;
+	null_texture_array() {}
+	virtual ~null_texture_array() {}
+public:
+	virtual void bind() override {}
+	virtual void upload_layer(const size_t& layer, const gfx_api::pixel_format & buffer_format, const void * data) override {}
+	virtual unsigned id() override { return 0; }
+};
+
 struct null_buffer final : public gfx_api::buffer
 {
 	gfx_api::buffer::usage usage;
@@ -86,6 +99,7 @@ public:
 	~null_context();
 
 	virtual gfx_api::texture* create_texture(const size_t& mipmap_count, const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename) override;
+	virtual gfx_api::texture_array* create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t& width, const size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename) override;
 	virtual gfx_api::buffer * create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint = buffer_storage_hint::static_draw) override;
 
 	virtual gfx_api::pipeline_state_object * build_pipeline(const gfx_api::state_description &state_desc,
@@ -101,7 +115,7 @@ public:
 	virtual void unbind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) override;
 	virtual void disable_all_vertex_buffers() override;
 	virtual void bind_streamed_vertex_buffers(const void* data, const std::size_t size) override;
-	virtual void bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::texture*>& textures) override;
+	virtual void bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::abstract_texture*>& textures) override;
 	virtual void set_constants(const void* buffer, const size_t& size) override;
 	virtual void set_uniforms(const size_t& first, const std::vector<std::tuple<const void*, size_t>>& uniform_blocks) override;
 	virtual void draw(const size_t& offset, const size_t &count, const gfx_api::primitive_type &primitive) override;

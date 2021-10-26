@@ -226,6 +226,56 @@ unsigned gl_texture::id()
 	return _id;
 }
 
+// MARK: gl_texture_array
+
+gl_texture_array::gl_texture_array()
+{
+	glGenTextures(1, &_id);
+}
+
+gl_texture_array::~gl_texture_array()
+{
+	glDeleteTextures(1, &_id);
+}
+
+void gl_texture_array::bind()
+{
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _id);
+}
+
+void gl_texture_array::unbind()
+{
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+}
+
+void gl_texture_array::upload_layer(const size_t& layer, const gfx_api::pixel_format & buffer_format, const void * data)
+{
+	ASSERT(width > 0 && height > 0, "Attempt to upload texture with width or height of 0 (width: %zu, height: %zu)", width, height);
+	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
+	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
+	bind();
+	if(!glGenerateMipmap)
+	{
+		// fallback for if glGenerateMipmap is unavailable
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_GENERATE_MIPMAP, GL_TRUE);
+	}
+	glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, static_cast<GLint>(layer), static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1, std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
+	if(glGenerateMipmap)
+	{
+		glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+	}
+	unbind();
+}
+
+unsigned gl_texture_array::id()
+{
+	return _id;
+}
+
 // MARK: gl_buffer
 
 gl_buffer::gl_buffer(const gfx_api::buffer::usage& usage, const gfx_api::context::buffer_storage_hint& hint)
@@ -337,6 +387,13 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 			"cameraPos", "sunPos", "emissiveLight", "ambientLight", "diffuseLight", "specularLight",
 			"fogColor", "fogEnabled", "fogEnd", "fogStart", "quality",
 			"tex", "lightmap_tex", "TextureNormal", "TextureSpecular", "TextureHeight" } }),
+	std::make_pair(SHADER_TERRAIN_DECALS, program_data{ "terrain decals program", "shaders/terrainDecals.vert", "shaders/terrainDecals.frag",
+		{ "ModelViewProjectionMatrix", "ModelUVLightmapMatrix",
+			"cameraPos", "sunPos", "emissiveLight", "ambientLight", "diffuseLight", "specularLight",
+			"fogColor", "fogEnabled", "fogEnd", "fogStart", "quality", "groundScale",
+			"lightmap_tex",
+			"groundTex", "groundNormal", "groundSpecular", "groundHeight",
+			"decalTex",  "decalNormal",  "decalSpecular",  "decalHeight" } }),
 	std::make_pair(SHADER_WATER, program_data{ "water program", "shaders/terrain_water.vert", "shaders/water.frag",
 		{ "ModelViewProjectionMatrix", "ModelUV1Matrix", "ModelUV2Matrix",
 			"cameraPos", "sunPos",
@@ -615,6 +672,7 @@ desc(_desc), vertex_buffer_desc(_vertex_buffer_desc)
 		uniform_binding_entry<SHADER_TERRAIN>(),
 		uniform_binding_entry<SHADER_TERRAIN_DEPTH>(),
 		uniform_binding_entry<SHADER_DECALS>(),
+		uniform_binding_entry<SHADER_TERRAIN_DECALS>(),
 		uniform_binding_entry<SHADER_WATER>(),
 		uniform_binding_entry<SHADER_RECT>(),
 		uniform_binding_entry<SHADER_TEXRECT>(),
@@ -938,6 +996,8 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 	glBindAttribLocation(program, 3, "vertexNormal");
 	glBindAttribLocation(program, 4, "vertexTangent");
 	glBindAttribLocation(program, 5, "tileNo");
+	glBindAttribLocation(program, 6, "grounds");
+	glBindAttribLocation(program, 7, "groundWeights");
 	ASSERT_OR_RETURN(, program, "Could not create shader program!");
 
 	char* vertexShaderContents = nullptr;
@@ -1153,6 +1213,15 @@ void gl_pipeline_state_object::setUniforms(size_t uniformIdx, const float &v)
 	}
 }
 
+void gl_pipeline_state_object::setUniforms(size_t uniformIdx, const size_t n, const float *v)
+{
+	glUniform1fv(locations[uniformIdx], static_cast<GLsizei>(n), v);
+	if (duplicateFragmentUniformLocations[uniformIdx] != -1)
+	{
+		glUniform1fv(duplicateFragmentUniformLocations[uniformIdx], static_cast<GLsizei>(n), v);
+	}
+}
+
 // MARK: -
 
 //template<typename T>
@@ -1276,6 +1345,34 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	setUniforms(i++, 2); // TextureNormal
 	setUniforms(i++, 3); // TextureSpecular
 	setUniforms(i++, 4); // TextureHeight
+}
+
+void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_TERRAIN_DECALS>& cbuf)
+{
+	int i = 0;
+	setUniforms(i++, cbuf.ModelViewProjectionMatrix);
+	setUniforms(i++, cbuf.ModelUVLightmapMatrix);
+	setUniforms(i++, cbuf.cameraPos);
+	setUniforms(i++, cbuf.sunPos);
+	setUniforms(i++, cbuf.emissiveLight);
+	setUniforms(i++, cbuf.ambientLight);
+	setUniforms(i++, cbuf.diffuseLight);
+	setUniforms(i++, cbuf.specularLight);
+	setUniforms(i++, cbuf.fog_colour);
+	setUniforms(i++, cbuf.fog_enabled);
+	setUniforms(i++, cbuf.fog_begin);
+	setUniforms(i++, cbuf.fog_end);
+	setUniforms(i++, cbuf.quality);
+	setUniforms(i++, sizeof(cbuf.groundScale)/sizeof(cbuf.groundScale[0]), cbuf.groundScale);
+	setUniforms(i++, 0); // lightmap_tex
+	setUniforms(i++, 1); // ground
+	setUniforms(i++, 2); // groundNormal
+	setUniforms(i++, 3); // groundSpecular
+	setUniforms(i++, 4); // groundHeight
+	setUniforms(i++, 5); // decal
+	setUniforms(i++, 6); // decalNormal
+	setUniforms(i++, 7); // decalSpecular
+	setUniforms(i++, 8); // decalHeight
 }
 
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_WATER>& cbuf)
@@ -1447,6 +1544,27 @@ gfx_api::texture* gl_context::create_texture(const size_t& mipmap_count, const s
 	return new_texture;
 }
 
+gfx_api::texture_array* gl_context::create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t& width, const size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)
+{
+	ASSERT(mipmap_count <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "mipmap_count (%zu) exceeds GLint max", mipmap_count);
+	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
+	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
+	auto* new_texture = new gl_texture_array();
+	new_texture->width = width;
+	new_texture->height = height;
+	new_texture->bind();
+	if (!filename.empty() && GLAD_GL_KHR_debug && glObjectLabel)
+	{
+		glObjectLabel(GL_TEXTURE, new_texture->id(), -1, filename.c_str());
+	}
+	for (GLint i = 0, e = static_cast<GLint>(mipmap_count); i < e; ++i)
+	{
+		glTexImage3D(GL_TEXTURE_2D_ARRAY, i, std::get<0>(to_gl(internal_format)), static_cast<GLsizei>(width >> i), static_cast<GLsizei>(height >> i), static_cast<GLsizei>(layer_count), 0, std::get<1>(to_gl(internal_format)), GL_UNSIGNED_BYTE, nullptr);
+	}
+	new_texture->unbind();
+	return new_texture;
+}
+
 gfx_api::buffer * gl_context::create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint /*= buffer_storage_hint::static_draw*/)
 {
 	return new gl_buffer(usage, hint);
@@ -1573,7 +1691,7 @@ void gl_context::unbind_index_buffer(gfx_api::buffer&)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void gl_context::bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::texture*>& textures)
+void gl_context::bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::abstract_texture*>& textures)
 {
 	ASSERT_OR_RETURN(, current_program != nullptr, "current_program == NULL");
 	ASSERT(textures.size() <= texture_descriptions.size(), "Received more textures than expected");
@@ -1584,51 +1702,53 @@ void gl_context::bind_textures(const std::vector<gfx_api::texture_input>& textur
 		if (textures[i] == nullptr)
 		{
 			glBindTexture(GL_TEXTURE_2D, 0);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 			continue;
 		}
+		const auto type = textures[i]->isArray() ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
 		textures[i]->bind();
 		switch (desc.sampler)
 		{
 			case gfx_api::sampler_type::nearest_clamped:
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				break;
 			case gfx_api::sampler_type::bilinear:
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				break;
 			case gfx_api::sampler_type::bilinear_repeat:
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+				glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				glTexParameteri(type, GL_TEXTURE_WRAP_T, GL_REPEAT);
 				break;
 			case gfx_api::sampler_type::anisotropic_repeat:
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+				glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				glTexParameteri(type, GL_TEXTURE_WRAP_T, GL_REPEAT);
 				if (GLAD_GL_EXT_texture_filter_anisotropic)
 				{
 					GLfloat max;
 					glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max);
-					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, MIN(4.0f, max));
+					glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, MIN(4.0f, max));
 				}
 				break;
 			case gfx_api::sampler_type::anisotropic:
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				if (GLAD_GL_EXT_texture_filter_anisotropic)
 				{
 					GLfloat max;
 					glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max);
-					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, MIN(4.0f, max));
+					glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, MIN(4.0f, max));
 				}
 				break;
 		}
