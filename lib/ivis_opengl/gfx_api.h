@@ -248,6 +248,7 @@ namespace gfx_api
 
 	struct pipeline_state_object
 	{
+		bool broken = false;
 		virtual ~pipeline_state_object() {}
 	};
 
@@ -382,7 +383,7 @@ namespace gfx_api
 
 		void bind()
 		{
-			if (this->nextpso != nullptr) {
+			if (this->nextpso != nullptr && !this->nextpso->broken) {
 				if (this->pso != nullptr) delete this->pso;
 				this->pso = this->nextpso;
 				this->nextpso = nullptr;
@@ -446,6 +447,11 @@ namespace gfx_api
 		void recompile()
 		{
 			this->nextpso = gfx_api::context::get().build_pipeline(rasterizer::get(), shader, primitive, untuple_typeinfo(uniform_inputs{}), untuple<texture_input>(texture_inputs{}), untuple<vertex_buffer>(vertex_buffer_inputs{}));
+		}
+
+		bool isBroken()
+		{
+			return nextpso ? nextpso->broken : pso->broken;
 		}
 	private:
 		pipeline_state_object* pso = nullptr;

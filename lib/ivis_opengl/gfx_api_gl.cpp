@@ -1073,6 +1073,7 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 	}
 	fetch_uniforms(uniformNames, duplicateFragmentUniformNames);
 	getLocs();
+	broken |= !success;
 }
 
 void gl_pipeline_state_object::fetch_uniforms(const std::vector<std::string>& uniformNames, const std::vector<std::string>& duplicateFragmentUniformNames)
