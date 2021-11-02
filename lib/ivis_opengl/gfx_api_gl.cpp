@@ -1376,6 +1376,7 @@ GLint get_size(const gfx_api::vertex_attribute_type& type)
 		case gfx_api::vertex_attribute_type::float3:
 			return 3;
 		case gfx_api::vertex_attribute_type::float4:
+		case gfx_api::vertex_attribute_type::u8x4:
 		case gfx_api::vertex_attribute_type::u8x4_norm:
 			return 4;
 	}
@@ -1391,6 +1392,7 @@ GLenum get_type(const gfx_api::vertex_attribute_type& type)
 		case gfx_api::vertex_attribute_type::float3:
 		case gfx_api::vertex_attribute_type::float4:
 			return GL_FLOAT;
+		case gfx_api::vertex_attribute_type::u8x4:
 		case gfx_api::vertex_attribute_type::u8x4_norm:
 			return GL_UNSIGNED_BYTE;
 		case gfx_api::vertex_attribute_type::int1:
@@ -1408,6 +1410,7 @@ GLboolean get_normalisation(const gfx_api::vertex_attribute_type& type)
 		case gfx_api::vertex_attribute_type::float3:
 		case gfx_api::vertex_attribute_type::float4:
 		case gfx_api::vertex_attribute_type::int1:
+		case gfx_api::vertex_attribute_type::u8x4:
 			return GL_FALSE;
 		case gfx_api::vertex_attribute_type::u8x4_norm:
 			return true;
@@ -1503,7 +1506,7 @@ void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector
 		for (const auto& attribute : buffer_desc.attributes)
 		{
 			enableVertexAttribArray(static_cast<GLuint>(attribute.id));
-			if (get_type(attribute.type) == GL_INT) {
+			if (get_type(attribute.type) == GL_INT || attribute.type == gfx_api::vertex_attribute_type::u8x4) {
 				glVertexAttribIPointer(static_cast<GLuint>(attribute.id), get_size(attribute.type), get_type(attribute.type), static_cast<GLsizei>(buffer_desc.stride), reinterpret_cast<void*>(attribute.offset + std::get<1>(vertex_buffers_offset[i])));
 			} else {
 				glVertexAttribPointer(static_cast<GLuint>(attribute.id), get_size(attribute.type), get_type(attribute.type), get_normalisation(attribute.type), static_cast<GLsizei>(buffer_desc.stride), reinterpret_cast<void*>(attribute.offset + std::get<1>(vertex_buffers_offset[i])));

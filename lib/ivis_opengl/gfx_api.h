@@ -203,6 +203,7 @@ namespace gfx_api
 		float2,
 		float3,
 		float4,
+		u8x4,
 		u8x4_norm,
 		int1,
 	};
