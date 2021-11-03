@@ -256,6 +256,8 @@ void setTileColour(int x, int y, PIELIGHT colour)
 	psTile->colour = colour;
 }
 
+static void flipRotateTexCoords(unsigned short texture, Vector2f &sP1, Vector2f &sP2, Vector2f &sP3, Vector2f &sP4);
+
 // NOTE:  The current (max) texture size of a tile is 128x128.  We allow up to a user defined texture size
 // of 2048.  This will cause ugly seams for the decals, if user picks a texture size bigger than the tile!
 /// Set up the texture coordinates for a tile
@@ -288,7 +290,21 @@ static Vector2f getTileTexCoords(Vector2f *uv, unsigned int tileNumber)
 	Vector2f sP2 { xMult - one, one };
 	Vector2f sP3 { xMult - one, yMult - one };
 	Vector2f sP4 { one, yMult - one };
+	flipRotateTexCoords(texture, sP1, sP2, sP3, sP4);
 
+	const Vector2f offset { tileTexInfo[tile].uOffset, tileTexInfo[tile].vOffset };
+
+	uv[0 + 0] = offset + sP1;
+	uv[0 + 2] = offset + sP2;
+	uv[1 + 2] = offset + sP3;
+	uv[1 + 0] = offset + sP4;
+
+	/// Calculate the average texture coordinates of 4 points
+	return Vector2f { (uv[0].x + uv[1].x + uv[2].x + uv[3].x) / 4, (uv[0].y + uv[1].y + uv[2].y + uv[3].y) / 4 };
+}
+
+static void flipRotateTexCoords(unsigned short texture, Vector2f &sP1, Vector2f &sP2, Vector2f &sP3, Vector2f &sP4)
+{
 	if (texture & TILE_XFLIP)
 	{
 		std::swap(sP1, sP2);
@@ -326,15 +342,20 @@ static Vector2f getTileTexCoords(Vector2f *uv, unsigned int tileNumber)
 		sP4 = sPTemp;
 		break;
 	}
-	const Vector2f offset { tileTexInfo[tile].uOffset, tileTexInfo[tile].vOffset };
+}
 
-	uv[0 + 0] = offset + sP1;
-	uv[0 + 2] = offset + sP2;
-	uv[1 + 2] = offset + sP3;
-	uv[1 + 0] = offset + sP4;
-
-	/// Calculate the average texture coordinates of 4 points
-	return Vector2f { (uv[0].x + uv[1].x + uv[2].x + uv[3].x) / 4, (uv[0].y + uv[1].y + uv[2].y + uv[3].y) / 4 };
+/// set up tile/decal coords for texture arrays. just flip/rotate, without borders and tex atlas stuff.
+static Vector2f getTileTexArrCoords(Vector2f *uv, unsigned int tileNumber)
+{
+	/* unmask proper values from compressed data */
+	const unsigned short texture = TileNumber_texture(tileNumber);
+	Vector2f sP[] = {{ 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 }};
+	flipRotateTexCoords(texture, sP[0], sP[1], sP[2], sP[3]);
+	uv[0 + 0] = sP[0];
+	uv[0 + 2] = sP[1];
+	uv[1 + 2] = sP[2];
+	uv[1 + 0] = sP[3];
+	return Vector2f { 0.5, 0.5 };
 }
 
 /// Average the four positions to get the center
@@ -477,7 +498,7 @@ static void setSectorDecals(int x, int y, DecalVertex *decaldata, int *decalSize
 			}
 			{
 				MAPTILE *tile = mapTile(i, j);
-				center = getTileTexCoords(*uv, tile->texture);
+				center = getTileTexArrCoords(*uv, tile->texture);
 				auto decalNo = TileNumber_tile(tile->texture);
 				if (!TILE_HAS_DECAL(mapTile(i, j))) decalNo = -decalNo;
 

@@ -53,7 +53,7 @@ vec3 getGround(int i) {
 
 vec4 main_classic() {
 	vec3 ground = getGround(0) + getGround(1) + getGround(2) + getGround(3);
-	vec4 decal = tile > 0 ? texture2DArray(decalTex, vec3(fract(uvDecal * 16), tile)) : vec4(0);
+	vec4 decal = tile > 0 ? texture2DArray(decalTex, vec3(uvDecal, tile)) : vec4(0);
 	vec4 light = texture2D(lightmap_tex, uvLightmap);
 	return light * vec4((1-decal.a) * ground + decal.a * decal.rgb, 1);
 }
@@ -101,7 +101,7 @@ vec4 main_bumpMapping() {
 	vec4 decal;
 	if (tile > 0) {
 		BumpData decalData;
-		vec3 decalUv = vec3(fract(uvDecal * 16), tile);
+		vec3 decalUv = vec3(uvDecal, tile);
 		decalData.color = texture2DArray(decalTex, decalUv);
 		decalData.N = texture2DArray(decalNormal, decalUv).xyz;
 		if (decalData.N == vec3(0)) {
