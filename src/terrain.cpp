@@ -500,7 +500,7 @@ static void setSectorDecals(int x, int y, DecalVertex *decaldata, int *decalSize
 				MAPTILE *tile = mapTile(i, j);
 				center = getTileTexArrCoords(*uv, tile->texture);
 				auto decalNo = TileNumber_tile(tile->texture);
-				if (!TILE_HAS_DECAL(mapTile(i, j))) decalNo = -decalNo;
+				if (!TILE_HAS_DECAL(tile)) decalNo = 0;
 
 				int dxdy[4][2] = {{0,0}, {0,1}, {1,1}, {1,0}};
 				PIELIGHT grounds;
