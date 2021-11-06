@@ -871,7 +871,7 @@ public:
 		auto panel = std::make_shared<WzGraphicsPanel>();
 
 		auto prevButton = panel->createButton(0, "Reload terrain and water textures", [](){
-			reloadTerrainTextures();
+			loadTerrainTextures();
 			debug(LOG_INFO, "Done");
 		});
 		panel->createButton(0, "Reload decal textures", [](){

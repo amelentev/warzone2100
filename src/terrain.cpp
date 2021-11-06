@@ -1700,30 +1700,3 @@ void drawWater(const glm::mat4 &ModelViewProjection, const Vector3f &cameraPos, 
 		waterOffset += graphicsTimeAdjustedIncrement(0.1f);
 	}
 }
-
-static void reloadTex(const std::string &tex, void (*pTransformFunc)(iV_Image&, const char *) = nullptr)
-{
-	if (!tex.empty()) {
-		WzString wzTex = WzString::fromUtf8(tex);
-		replaceTexture(wzTex, wzTex, pTransformFunc);
-	}
-}
-
-void reloadTerrainTextures()
-{
-	reloadTex("page-80-water-1.png");
-	reloadTex("page-81-water-2.png");
-	reloadTex(waterTexture1_nm);
-	reloadTex(waterTexture2_nm);
-	reloadTex(waterTexture1_sm, &iV_TransformSpecularTextureFunction);
-	reloadTex(waterTexture2_sm, &iV_TransformSpecularTextureFunction);
-	reloadTex(waterTexture1_hm);
-	reloadTex(waterTexture2_hm);
-	for (int g=0; g < getNumGroundTypes(); g++) {
-		auto ground = getGroundType(g);
-		reloadTex(ground.textureName);
-		reloadTex(ground.normalMapTextureName);
-		reloadTex(ground.specularMapTextureName, &iV_TransformSpecularTextureFunction);
-		reloadTex(ground.heightMapTextureName);
-	}
-}

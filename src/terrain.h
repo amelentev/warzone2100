@@ -46,7 +46,4 @@ enum TerrainShaderQuality
 
 extern TerrainShaderQuality terrainShaderQuality;
 
-// for debug
-void reloadTerrainTextures();
-
 #endif
