@@ -1267,6 +1267,16 @@ void shutdownTerrain()
 	lightmap_texture = nullptr;
 	lightmapPixmap = nullptr;
 
+	delete groundTexArr; groundTexArr = nullptr;
+	delete groundNormalArr; groundNormalArr = nullptr;
+	delete groundSpecularArr; groundSpecularArr = nullptr;
+	delete groundHeightArr; groundHeightArr = nullptr;
+
+	delete decalTexArr; decalTexArr = nullptr;
+	delete decalNormalArr; decalNormalArr = nullptr;
+	delete decalSpecularArr; decalSpecularArr = nullptr;
+	delete decalHeightArr; decalHeightArr = nullptr;
+
 	terrainInitialised = false;
 }
 
