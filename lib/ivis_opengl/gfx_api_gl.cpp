@@ -388,9 +388,9 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 			"fogColor", "fogEnabled", "fogEnd", "fogStart", "quality",
 			"tex", "lightmap_tex", "TextureNormal", "TextureSpecular", "TextureHeight" } }),
 	std::make_pair(SHADER_TERRAIN_DECALS, program_data{ "terrain decals program", "shaders/terrainDecals.vert", "shaders/terrainDecals.frag",
-		{ "ModelViewProjectionMatrix", "ModelUVLightmapMatrix",
+		{ "ModelViewProjectionMatrix", "ModelUVLightmapMatrix", "groundScale",
 			"cameraPos", "sunPos", "emissiveLight", "ambientLight", "diffuseLight", "specularLight",
-			"fogColor", "fogEnabled", "fogEnd", "fogStart", "quality", "groundScale",
+			"fogColor", "fogEnabled", "fogEnd", "fogStart", "quality",
 			"lightmap_tex",
 			"groundTex", "groundNormal", "groundSpecular", "groundHeight",
 			"decalTex",  "decalNormal",  "decalSpecular",  "decalHeight" } }),
@@ -1352,6 +1352,7 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	int i = 0;
 	setUniforms(i++, cbuf.ModelViewProjectionMatrix);
 	setUniforms(i++, cbuf.ModelUVLightmapMatrix);
+	setUniforms(i++, cbuf.groundScale);
 	setUniforms(i++, cbuf.cameraPos);
 	setUniforms(i++, cbuf.sunPos);
 	setUniforms(i++, cbuf.emissiveLight);
@@ -1363,7 +1364,6 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	setUniforms(i++, cbuf.fog_begin);
 	setUniforms(i++, cbuf.fog_end);
 	setUniforms(i++, cbuf.quality);
-	setUniforms(i++, sizeof(cbuf.groundScale)/sizeof(cbuf.groundScale[0]), cbuf.groundScale);
 	setUniforms(i++, 0); // lightmap_tex
 	setUniforms(i++, 1); // ground
 	setUniforms(i++, 2); // groundNormal

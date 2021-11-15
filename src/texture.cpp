@@ -369,6 +369,10 @@ bool texLoad(const char *fileName)
 		debug(LOG_TEXTURE, "texLoad: Found %d textures for %s mipmap level %d, added to page %d, opengl id %u",
 		      k, partialPath, mipmap_max, texPage, (unsigned)pie_Texture(texPage).id());
 	}
+	decalTexArr->flush();
+	decalNormalArr->flush();
+	decalSpecularArr->flush();
+	decalHeightArr->flush();
 	return true;
 }
 

@@ -827,6 +827,10 @@ void loadTerrainTextures()
 		uploadLayer(groundSpecularArr, groundType.specularMapTextureName, &iV_TransformSpecularTextureFunction);
 		uploadLayer(groundHeightArr, groundType.heightMapTextureName, nullptr);
 	}
+	groundTexArr->flush();
+	groundNormalArr->flush();
+	groundSpecularArr->flush();
+	groundHeightArr->flush();
 
 	// check water optional textures
 	auto checkTex = [](const std::string &fileName) {
@@ -1557,15 +1561,16 @@ static void drawTerrainAndDecals(const glm::mat4 &ModelViewProjection, const glm
 		groundTexArr, groundNormalArr, groundSpecularArr, groundHeightArr,
 		decalTexArr, decalNormalArr, decalSpecularArr, decalHeightArr);
 	gfx_api::TerrainAndDecals::get().bind_vertex_buffers(terrainDecalVBO);
+	glm::mat4 groundScale = glm::mat4(0);
+	for (int i = 0; i < getNumGroundTypes(); i++) {
+		groundScale[i/4][i%4] = 1.0f / (getGroundType(i).textureSize * world_coord(1));
+	}
 	gfx_api::constant_buffer_type<SHADER_TERRAIN_DECALS> uniforms = {
-		ModelViewProjection, ModelUVLightmap,
+		ModelViewProjection, ModelUVLightmap, groundScale,
 		glm::vec4(cameraPos, 0), glm::vec4(glm::normalize(sunPos), 0),
 		pie_GetLighting0(LIGHT_EMISSIVE), pie_GetLighting0(LIGHT_AMBIENT), pie_GetLighting0(LIGHT_DIFFUSE), pie_GetLighting0(LIGHT_SPECULAR),
-		getFogColorVec4(), renderState.fogEnabled, renderState.fogBegin, renderState.fogEnd, terrainShaderQuality, {}
+		getFogColorVec4(), renderState.fogEnabled, renderState.fogBegin, renderState.fogEnd, terrainShaderQuality
 	};
-	for (int i = 0; i < getNumGroundTypes(); i++) {
-		uniforms.groundScale[i] = 1.0f / (getGroundType(i).textureSize * world_coord(1));
-	}
 	gfx_api::TerrainAndDecals::get().bind_constants(uniforms);
 
 	int size = 0;

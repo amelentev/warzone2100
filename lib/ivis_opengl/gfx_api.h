@@ -90,6 +90,7 @@ namespace gfx_api
 	{
 		virtual void bind() = 0;
 		virtual bool isArray() = 0;
+		virtual void flush() {};
 		virtual ~abstract_texture() {};
 	};
 
@@ -793,6 +794,7 @@ namespace gfx_api
 	{
 		glm::mat4 ModelViewProjectionMatrix;
 		glm::mat4 ModelUVLightmapMatrix;
+		glm::mat4 groundScale; // array of scales for ground textures, encoded in mat4. scale_i = groundScale[i/4][i%4]
 		glm::vec4 cameraPos; // in modelSpace
 		glm::vec4 sunPos; // in modelSpace
 		glm::vec4 emissiveLight; // light colors/intensity
@@ -804,7 +806,6 @@ namespace gfx_api
 		float fog_begin;
 		float fog_end;
 		int quality;
-		float groundScale[12]; // 12 = MAX_GROUND_TYPES
 	};
 
 	using TerrainAndDecals = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u16,

@@ -395,6 +395,37 @@ private:
 	const VkRoot* root;
 };
 
+struct VkTextureArray final : public gfx_api::texture_array
+{
+	const vk::Device dev;
+	vk::Image object;
+	WZ_vk::UniqueImageView view;
+	VmaAllocation allocation = VK_NULL_HANDLE;
+	const vk::Format internal_format;
+	const uint32_t mipmap_levels;
+	const uint32_t layer_count;
+	const uint32_t texWidth;
+	const uint32_t texHeight;
+
+	VkTextureArray(const VkRoot& root, uint32_t mipmap_count, uint32_t layer_count, uint32_t width, uint32_t height, vk::Format _internal_format, const std::string& filename);
+
+	virtual ~VkTextureArray() override;
+
+	virtual void bind() override {};
+	virtual unsigned id() override { return 0; }
+
+	virtual void upload_layer(const size_t& layer, const gfx_api::pixel_format& buffer_format, const void * data) override;
+
+	virtual void flush() override;
+
+	VkTextureArray( const VkTextureArray& other ) = delete; // non construction-copyable
+	VkTextureArray& operator=( const VkTextureArray& ) = delete; // non copyable
+
+private:
+	void upload(uint32_t mip_level, uint32_t layer, uint32_t imgWidth, uint32_t imgHeight, gfx_api::pixel_format buffer_format, const void* data);
+	const VkRoot* root;
+};
+
 struct QueueFamilyIndices
 {
 	optional<uint32_t> graphicsFamily;

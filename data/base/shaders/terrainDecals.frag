@@ -8,8 +8,8 @@ uniform sampler2DArray groundNormal;
 uniform sampler2DArray groundSpecular;
 uniform sampler2DArray groundHeight;
 
-const int MAX_GROUND_TYPES = 12;
-uniform float groundScale[MAX_GROUND_TYPES];
+// array of scales for ground textures, encoded in mat4. scale_i = groundScale[i/4][i%4]
+uniform mat4 groundScale;
 
 // decal texture arrays. layer = decal tile
 uniform sampler2DArray decalTex;
@@ -46,9 +46,13 @@ in vec3 decalHalfVec;
 
 out vec4 FragColor;
 
+vec3 getGroundUv(int i) {
+	uint groundNo = fgrounds[i];
+	return vec3(uvGround * groundScale[groundNo/4u][groundNo%4u], groundNo);
+}
+
 vec3 getGround(int i) {
-	vec3 uv = vec3(uvGround * groundScale[fgrounds[i]], fgrounds[i]);
-	return texture2DArray(groundTex, uv).rgb * fgroundWeights[i];
+	return texture2DArray(groundTex, getGroundUv(i)).rgb * fgroundWeights[i];
 }
 
 vec4 main_classic() {
@@ -65,7 +69,7 @@ struct BumpData {
 };
 
 void getGroundBM(int i, inout BumpData res) {
-	vec3 uv = vec3(uvGround * groundScale[fgrounds[i]], fgrounds[i]);
+	vec3 uv = getGroundUv(i);
 	float w = fgroundWeights[i];
 	res.color += texture2DArray(groundTex, uv) * w;
 	vec3 N = texture2DArray(groundNormal, uv).xyz;
