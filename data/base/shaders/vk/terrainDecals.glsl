@@ -27,8 +27,7 @@ struct FragData {
 	// In tangent space
 	vec3 groundLightDir;
 	vec3 groundHalfVec;
-	vec3 decalLightDir;
-	vec3 decalHalfVec;
+	mat2 decal2groundMat2;
 };
 
 // non-interpolated data

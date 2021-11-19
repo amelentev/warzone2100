@@ -70,34 +70,33 @@ vec4 doBumpMapping(BumpData b, vec3 lightDir, vec3 halfVec) {
 }
 
 vec4 main_bumpMapping() {
-	BumpData groundData;
-	groundData.color = vec4(0);
-	groundData.N = vec3(0,0,0);
-	groundData.gloss = 0.0;
-	getGroundBM(0, groundData);
-	getGroundBM(1, groundData);
-	getGroundBM(2, groundData);
-	getGroundBM(3, groundData);
-	vec3 ground = doBumpMapping(groundData, frag.groundLightDir, frag.groundHalfVec).rgb;
+	BumpData bump;
+	bump.color = vec4(0);
+	bump.N = vec3(0);
+	bump.gloss = 0;
+	getGroundBM(0, bump);
+	getGroundBM(1, bump);
+	getGroundBM(2, bump);
+	getGroundBM(3, bump);
 
-	vec4 decal;
 	if (fragf.tileNo > 0) {
-		BumpData decalData;
 		vec3 uv = vec3(frag.uvDecal, fragf.tileNo);
-		decalData.color = texture(decalTex, uv);
-		decalData.N = texture(decalNormal, uv).xyz;
-		if (decalData.N == vec3(0)) {
-			decalData.N = vec3(0,0,1);
+		vec4 decalColor = texture(decalTex, uv);
+		float a = decalColor.a;
+		// blend color, normal and gloss with ground ones based on alpha
+		bump.color = (1-a)*bump.color + a*vec4(decalColor.rgb, 1);
+		vec3 n = texture(decalNormal, uv).xyz;
+		if (n == vec3(0)) {
+			n = vec3(0,0,1);
 		} else {
-			decalData.N = normalize(decalData.N * 2 - 1);
+			n = normalize(n * 2 - 1);
+			n = vec3(n.xy * frag.decal2groundMat2, n.z);
 		}
-		decalData.gloss = texture(decalSpecular, uv).r;
-		decal = doBumpMapping(decalData, frag.decalLightDir, frag.decalHalfVec);
-	} else {
-		decal = vec4(0);
+		bump.N = (1-a)*bump.N + a*n;
+		bump.gloss = (1-a)*bump.gloss + a*texture(decalSpecular, uv).r;
 	}
 	vec4 lightMask = texture(lightmap_tex, frag.uvLightmap);
-	return lightMask * vec4((1-decal.a) * ground + decal.a * decal.rgb, 1);
+	return lightMask * doBumpMapping(bump, frag.groundLightDir, frag.groundHalfVec);
 }
 
 void main()

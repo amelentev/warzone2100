@@ -22,8 +22,7 @@ out vec4 fgroundWeights;
 // In tangent space
 out vec3 groundLightDir;
 out vec3 groundHalfVec;
-out vec3 decalLightDir;
-out vec3 decalHalfVec;
+out mat2 decal2groundMat2;
 
 void main()
 {
@@ -39,7 +38,7 @@ void main()
 		fgroundWeights = vec4(0.25);
 	}
 
-	{ // calc light for ground
+	{ // calc light
 		// constructing ModelSpace -> TangentSpace mat3
 		vec3 vaxis = vec3(1,0,0); // v ~ vertex.x, see uv_ground
 		vec3 tangent = normalize(cross(vertexNormal, vaxis));
@@ -49,16 +48,13 @@ void main()
 		vec3 eyeVec = normalize((cameraPos.xyz - vertex.xyz) * ModelTangentMatrix);
 		groundLightDir = sunPos.xyz * ModelTangentMatrix; // already normalized
 		groundHalfVec = groundLightDir + eyeVec;
-	}
 
-	if (tile > 0) { // calc light for decals
-		// constructing ModelSpace -> TangentSpace mat3
-		vec3 bitangent = -cross(vertexNormal, vertexTangent.xyz) * vertexTangent.w;
-		mat3 ModelTangentMatrix = mat3(vertexTangent.xyz, bitangent, vertexNormal);
-		// transform light from ModelSpace to TangentSpace:
-		vec3 eyeVec = normalize((cameraPos.xyz - vertex.xyz) * ModelTangentMatrix);
-		decalLightDir = sunPos.xyz * ModelTangentMatrix;
-		decalHalfVec = decalLightDir + eyeVec;
+		vec3 bitangentDecal = -cross(vertexNormal, vertexTangent.xyz) * vertexTangent.w;
+		// transformation matrix from decal tangent space to ground tangent space for normals xy
+		decal2groundMat2 = mat2(
+			dot(vertexTangent.xyz, tangent), dot(bitangentDecal, tangent),
+			dot(vertexTangent.xyz, bitangent), dot(bitangentDecal, bitangent)
+		);
 	}
 
 	vec4 position = ModelViewProjectionMatrix * vertex;
